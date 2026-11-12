@@ -12,9 +12,7 @@ https://github.com/moonknight82/picard-plugin-discogs-fallback
 
 Install and enable **Discogs Fallback**.
 
-For a local install, follow these steps:
-
-Extract `Discogs-Fallback-Picard-3.zip` to a permanent location. In Picard 3, choose **Options → Plugins → Install Plugin… → Local** and select the extracted `picard_plugin_discogs_fallback` folder (the one containing `MANIFEST.toml`). Install and enable **Discogs Fallback**. Keep that folder in place because Picard loads the local plugin from it.
+For a local install, put a copy of this repository in a permanent location. In Picard 3, choose **Options → Plugins → Install Plugin… → Local** and select the folder containing `MANIFEST.toml`. Install and enable **Discogs Fallback**. Keep that folder in place because Picard loads the local plugin from it.
 
 ## Use
 
