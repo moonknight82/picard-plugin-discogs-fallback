@@ -7,6 +7,7 @@ import os
 import pytest
 
 from picard_plugin_discogs_fallback import discogs
+from picard_plugin_discogs_fallback.network import DiscogsClient
 from picard_plugin_discogs_fallback.picard_items import apply_file_tags, detach_album_files, files_for
 
 _app = None
@@ -83,9 +84,83 @@ def test_detach_album_files_creates_one_cluster(monkeypatch):
     assert file.target is cluster
 
 
-def test_search_requires_token_and_does_not_make_request():
-    with pytest.raises(ValueError, match="token"):
-        discogs.search("", "The Artist", "A Test Album")
+def test_search_path_and_results():
+    assert "release_title=A+Test+Album" in discogs.search_path("The Artist", "A Test Album")
+    assert discogs.search_results({"results": [{"type": "release", "id": 42}, {"type": "master", "id": 43}]}) == [
+        {"type": "release", "id": 42}
+    ]
+
+
+def test_network_uses_saved_token_and_picard_service():
+    class Service:
+        def get_url(self, **kwargs):
+            self.request = kwargs
+            return "pending"
+
+    service = Service()
+    api = SimpleNamespace(plugin_config={"token": "saved-token"}, web_service=service)
+    received = []
+    failed = []
+    pending = DiscogsClient(api).search("The Artist", "A Test Album", received.append, failed.append)
+    assert pending == "pending"
+    assert service.request["url"].startswith("https://api.discogs.com/database/search?")
+    assert service.request["headers"]["Authorization"] == "Discogs token=saved-token"
+    assert service.request["refresh"] is True
+    service.request["handler"]({"results": [{"type": "release", "id": 42}]}, None, None)
+    assert received == [[{"type": "release", "id": 42}]]
+    assert not failed
+
+
+def test_network_requires_saved_token():
+    class Service:
+        def get_url(self, **kwargs):
+            raise AssertionError("request should not be sent")
+
+    api = SimpleNamespace(plugin_config={"token": ""}, web_service=Service())
+    errors = []
+    assert DiscogsClient(api).search("Artist", "Album", lambda _: None, errors.append) is None
+    assert "Options" in errors[0]
+
+
+def test_network_reports_tls_error_without_disabling_verification():
+    class Service:
+        def get_url(self, **kwargs):
+            self.request = kwargs
+            return "pending"
+
+    class Reply:
+        def attribute(self, kind):
+            return None
+        def errorString(self):
+            return "certificate verify failed"
+
+    service = Service()
+    api = SimpleNamespace(plugin_config={"token": "saved-token"}, web_service=service)
+    errors = []
+    DiscogsClient(api).release(42, lambda _: None, errors.append)
+    service.request["handler"](b"", Reply(), RuntimeError("TLS error"))
+    assert errors == ["Discogs network error: certificate verify failed"]
+
+
+def test_options_page_persists_token(monkeypatch):
+    global _app
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    pytest.importorskip("picard")
+    from PyQt6.QtWidgets import QApplication
+    from picard.ui import options as picard_options
+    from picard_plugin_discogs_fallback.settings import DiscogsOptionsPage
+
+    _app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(picard_options, "tagger_instance", lambda: None)
+    config = {"token": "old-token"}
+    DiscogsOptionsPage.api = SimpleNamespace(plugin_config=config)
+    page = DiscogsOptionsPage()
+    page.load()
+    assert page.token.text() == "old-token"
+    page.token.setText("new-token")
+    page.save()
+    assert config["token"] == "new-token"
+    page.close()
 
 
 def test_picard_3_load_enable_disable(tmp_path):

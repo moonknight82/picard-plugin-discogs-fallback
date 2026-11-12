@@ -5,7 +5,11 @@ _dialogs = []
 
 def enable(api):
     from picard.plugin3.api import BaseAction, Album
+    from .settings import DiscogsOptionsPage
     from .ui import DiscogsDialog
+
+    api.plugin_config.register_option("token", "")
+    api.register_options_page(DiscogsOptionsPage)
 
     class SearchDiscogs(BaseAction):
         TITLE = "Search Discogs…"
@@ -15,7 +19,7 @@ def enable(api):
             if len(objs) != 1:
                 return
             source = objs[0]
-            dialog = DiscogsDialog(source, self.api.tagger.window, tagger=self.api.tagger, source_is_album=isinstance(source, Album))
+            dialog = DiscogsDialog(source, self.api.tagger.window, api=self.api, tagger=self.api.tagger, source_is_album=isinstance(source, Album))
             _dialogs.append(dialog)
             dialog.finished.connect(lambda: _dialogs.remove(dialog) if dialog in _dialogs else None)
             dialog.show()

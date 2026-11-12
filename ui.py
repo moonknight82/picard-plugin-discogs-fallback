@@ -4,45 +4,31 @@ from __future__ import annotations
 
 from html import escape
 
-from PyQt6.QtCore import QThread, pyqtSignal, QUrl
+from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
     QPlainTextEdit, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout,
 )
 
-from .discogs import mapping, release, search
+from .discogs import mapping
+from .network import DiscogsClient
 from .picard_items import apply_file_tags, detach_album_files, files_for
 
 
-class RequestThread(QThread):
-    succeeded = pyqtSignal(object)
-    failed = pyqtSignal(str)
-
-    def __init__(self, function, *args, parent=None):
-        super().__init__(parent)
-        self.function = function
-        self.args = args
-
-    def run(self):
-        try:
-            self.succeeded.emit(self.function(*self.args))
-        except Exception as exc:
-            self.failed.emit(str(exc))
-        finally:
-            self.args = ()
-
-
 class DiscogsDialog(QDialog):
-    def __init__(self, source, parent=None, *, tagger=None, source_is_album=False):
+    def __init__(self, source, parent=None, *, api=None, tagger=None, source_is_album=False):
         super().__init__(parent)
         self.source = source
+        self.api = api
+        self.client = DiscogsClient(api) if api else None
         self.tagger = tagger
         self.source_is_album = source_is_album
         self.results = []
         self.selected_release = None
         self.proposed = []
-        self.worker = None
+        self.pending = None
+        self.busy = False
         self.setWindowTitle("Discogs Fallback")
         self.resize(900, 680)
         layout = QVBoxLayout(self)
@@ -50,10 +36,7 @@ class DiscogsDialog(QDialog):
         layout.addWidget(QLabel("Search Discogs for this %s. Review the exact release and file order before applying tags." % context))
 
         form = QFormLayout()
-        self.token = QLineEdit()
-        self.token.setEchoMode(QLineEdit.EchoMode.Password)
-        self.token.setPlaceholderText("Discogs personal access token (held only while this window is open)")
-        form.addRow("API token", self.token)
+        layout.addWidget(QLabel("Set your API token in Options → Plugins → Discogs Fallback."))
         metadata = source.metadata
         self.artist = QLineEdit(str(metadata.get("albumartist") or metadata.get("artist") or ""))
         self.album = QLineEdit(str(metadata.get("album") or ""))
@@ -101,18 +84,32 @@ class DiscogsDialog(QDialog):
         footer.addWidget(close_button)
         layout.addLayout(footer)
 
-    def _start(self, function, args, callback):
-        if self.worker and self.worker.isRunning():
+    def _start(self, request, args, callback):
+        if self.busy:
             return
+        if not self.client:
+            self.show_error("Discogs network service is unavailable.")
+            return
+        self.busy = True
         self.search_button.setEnabled(False)
         self.apply_button.setEnabled(False)
-        self.worker = RequestThread(function, *args, parent=self)
         self.table.setEnabled(False)
-        self.worker.succeeded.connect(callback)
-        self.worker.failed.connect(self.show_error)
-        self.worker.finished.connect(lambda: self.search_button.setEnabled(True))
-        self.worker.finished.connect(lambda: self.table.setEnabled(True))
-        self.worker.start()
+
+        def finished():
+            self.pending = None
+            self.busy = False
+            self.search_button.setEnabled(True)
+            self.table.setEnabled(True)
+
+        def succeeded(data):
+            finished()
+            callback(data)
+
+        def failed(message):
+            finished()
+            self.show_error(message)
+
+        self.pending = request(*args, succeeded, failed)
 
     def start_search(self):
         self.results = []
@@ -122,7 +119,7 @@ class DiscogsDialog(QDialog):
         self.preview.clear()
         self.open_button.setEnabled(False)
         self.status.setText("Searching Discogs…")
-        self._start(search, (self.token.text(), self.artist.text(), self.album.text()), self.show_results)
+        self._start(self.client.search if self.client else None, (self.artist.text(), self.album.text()), self.show_results)
 
     def show_results(self, results):
         self.results = results
@@ -143,7 +140,7 @@ class DiscogsDialog(QDialog):
         item = self.results[rows[0].row()]
         self.open_button.setEnabled(bool(item.get("uri")))
         self.preview.setPlainText("Loading release details…")
-        self._start(release, (self.token.text(), item["id"]), self.show_release)
+        self._start(self.client.release if self.client else None, (item["id"],), self.show_release)
 
     def show_release(self, data):
         self.selected_release = data
@@ -209,9 +206,7 @@ class DiscogsDialog(QDialog):
         self.preview.setPlainText(message)
 
     def closeEvent(self, event):
-        if self.worker and self.worker.isRunning():
-            self.worker.finished.connect(self.close)
-            event.ignore()
-            return
-        self.token.clear()
+        if self.pending and self.api:
+            self.api.web_service.abort_task(self.pending)
+            self.pending = None
         super().closeEvent(event)

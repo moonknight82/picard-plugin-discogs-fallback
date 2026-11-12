@@ -16,12 +16,12 @@ For a local install, put a copy of this repository in a permanent location. In P
 
 ## Use
 
-1. Get a personal access token from [Discogs Developer settings](https://www.discogs.com/settings/developers). The token stays in the search window and is cleared when it closes.
+1. Get a personal access token from [Discogs Developer settings](https://www.discogs.com/settings/developers). Enter it once in **Picard Options → Plugins → Discogs Fallback**. Picard stores it in its local plugin configuration.
 2. Load files into Picard, then right-click either their cluster on the left or their release on the right and choose **Discogs Fallback → Search Discogs…**.
 3. Search by artist and album. Select a specific release, inspect its source page and the file-to-track preview, then choose **Apply tags in Picard**. The Discogs release must have the same number of listed tracks as the selected Picard item has files.
 4. Review the resulting tags in Picard and save the files yourself. The plugin does not fetch images or change audio files during search.
 
-When applying from a release on the right, the plugin moves its files into a new cluster on the left before changing tags. This detaches them from the MusicBrainz release so Picard does not restore the MusicBrainz metadata. The plugin clears existing `musicbrainz_*` identifier tags, then updates album, album artist, artist, title, track number, disc number, release year, label, and a custom `discogs_release_id` tag when available. It preserves other tags. File mapping uses existing disc and track numbers, then filename order. Check the preview carefully for releases with nonstandard track positions or gaps.
+When applying from a release on the right, the plugin moves its files into a new cluster on the left before changing tags. This detaches them from the MusicBrainz release so Picard does not restore the MusicBrainz metadata. The plugin clears existing `musicbrainz_*` identifier tags, then updates album, album artist, artist, title, track number, disc number, release year, label, and a custom `discogs_release_id` tag when available. It preserves other tags. File mapping uses existing disc and track numbers, then filename order. Check the preview carefully for releases with nonstandard track positions or gaps. Requests use Picard's network service and TLS handling.
 
 This application uses Discogs’ API but is not affiliated with, sponsored or endorsed by Discogs. ‘Discogs’ is a trademark of Zink Media, LLC. Data provided by Discogs is linked to each release in the plugin window.
 

@@ -2,48 +2,31 @@
 
 from __future__ import annotations
 
-import json
 import re
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
 API = "https://api.discogs.com"
 USER_AGENT = "PicardDiscogsFallback/0.1 (+https://github.com/moonknight82)"
 POSITION = re.compile(r"^(?:(\d+)[-/.])?(\d+)$")
 
 
-def _get(path: str, token: str) -> dict:
-    if not token or not token.strip():
-        raise ValueError("Enter a Discogs personal access token.")
-    headers = {"User-Agent": USER_AGENT, "Accept": "application/json", "Authorization": f"Discogs token={token.strip()}"}
-    try:
-        with urlopen(Request(API + path, headers=headers), timeout=20) as response:
-            return json.load(response)
-    except HTTPError as exc:
-        if exc.code in (401, 403):
-            raise ValueError("Discogs rejected the token or request (HTTP %s)." % exc.code) from exc
-        if exc.code == 429:
-            raise ValueError("Discogs rate limit reached. Wait and retry.") from exc
-        raise ValueError("Discogs request failed (HTTP %s)." % exc.code) from exc
-    except (URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise ValueError("Could not read Discogs response: %s" % exc) from exc
-
-
-def search(token: str, artist: str, album: str) -> list[dict]:
+def search_path(artist: str, album: str) -> str:
     if not album.strip():
         raise ValueError("Enter an album title.")
     params = {"type": "release", "release_title": album.strip(), "per_page": 25}
     if artist.strip():
         params["artist"] = artist.strip()
-    payload = _get("/database/search?" + urlencode(params), token)
+    return "/database/search?" + urlencode(params)
+
+
+def search_results(payload: dict) -> list[dict]:
     return [item for item in payload.get("results", []) if item.get("type") == "release" and isinstance(item.get("id"), int)]
 
 
-def release(token: str, release_id: int) -> dict:
+def release_path(release_id: int) -> str:
     if not isinstance(release_id, int) or release_id <= 0:
         raise ValueError("Invalid Discogs release ID.")
-    return _get("/releases/%d" % release_id, token)
+    return "/releases/%d" % release_id
 
 
 def artist_name(artists: list[dict]) -> str:
