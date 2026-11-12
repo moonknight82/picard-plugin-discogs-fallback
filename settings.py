@@ -27,7 +27,7 @@ class DiscogsOptionsPage(OptionsPage):
         layout.addStretch()
 
     def load(self):
-        self.token.setText(self.api.plugin_config.get("token", "") or "")
+        self.token.setText(self.api.plugin_config["token"] or "")
 
     def save(self):
         self.api.plugin_config["token"] = self.token.text().strip()

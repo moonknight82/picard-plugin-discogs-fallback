@@ -13,6 +13,21 @@ from picard_plugin_discogs_fallback.picard_items import apply_file_tags, detach_
 _app = None
 
 
+class ConfigSection:
+    """Picard-style section: item access, intentionally no dict.get()."""
+
+    def __init__(self, token):
+        self.token = token
+
+    def __getitem__(self, key):
+        assert key == "token"
+        return self.token
+
+    def __setitem__(self, key, value):
+        assert key == "token"
+        self.token = value
+
+
 RELEASE = {
     "id": 42,
     "title": "A Test Album",
@@ -98,7 +113,7 @@ def test_network_uses_saved_token_and_picard_service():
             return "pending"
 
     service = Service()
-    api = SimpleNamespace(plugin_config={"token": "saved-token"}, web_service=service)
+    api = SimpleNamespace(plugin_config=ConfigSection("saved-token"), web_service=service)
     received = []
     failed = []
     pending = DiscogsClient(api).search("The Artist", "A Test Album", received.append, failed.append)
@@ -116,7 +131,7 @@ def test_network_requires_saved_token():
         def get_url(self, **kwargs):
             raise AssertionError("request should not be sent")
 
-    api = SimpleNamespace(plugin_config={"token": ""}, web_service=Service())
+    api = SimpleNamespace(plugin_config=ConfigSection(""), web_service=Service())
     errors = []
     assert DiscogsClient(api).search("Artist", "Album", lambda _: None, errors.append) is None
     assert "Options" in errors[0]
@@ -135,7 +150,7 @@ def test_network_reports_tls_error_without_disabling_verification():
             return "certificate verify failed"
 
     service = Service()
-    api = SimpleNamespace(plugin_config={"token": "saved-token"}, web_service=service)
+    api = SimpleNamespace(plugin_config=ConfigSection("saved-token"), web_service=service)
     errors = []
     DiscogsClient(api).release(42, lambda _: None, errors.append)
     service.request["handler"](b"", Reply(), RuntimeError("TLS error"))
@@ -152,7 +167,7 @@ def test_options_page_persists_token(monkeypatch):
 
     _app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(picard_options, "tagger_instance", lambda: None)
-    config = {"token": "old-token"}
+    config = ConfigSection("old-token")
     DiscogsOptionsPage.api = SimpleNamespace(plugin_config=config)
     page = DiscogsOptionsPage()
     page.load()

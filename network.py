@@ -10,7 +10,7 @@ class DiscogsClient:
         self.api = api
 
     def _get(self, path, succeeded, failed):
-        token = (self.api.plugin_config.get("token", "") or "").strip()
+        token = (self.api.plugin_config["token"] or "").strip()
         if not token:
             failed("Set your Discogs API token in Picard Options → Plugins → Discogs Fallback.")
             return None
