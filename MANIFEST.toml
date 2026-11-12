@@ -1,14 +1,14 @@
 uuid = "949edb7d-7d43-4703-9761-e0c74c2215dd"
 name = "Discogs Fallback"
 authors = ["Thiago and Codex"]
-description = "Search Discogs for a selected Picard cluster and review tags before saving"
+description = "Search Discogs for a selected Picard cluster or release and review tags before saving"
 api = ["3.0"]
 license = "GPL-2.0-or-later"
 license_url = "https://www.gnu.org/licenses/gpl-2.0.html"
 categories = ["metadata", "ui"]
 
 long_description = """
-Adds a manual Discogs search to the cluster context menu. A chosen release can
-populate core tags for an equal-sized cluster after a per-track preview.
+Adds a manual Discogs search to cluster and release context menus. A chosen
+Discogs release can populate core tags after a per-track preview.
 Nothing is saved until the user saves the files in Picard.
 """
